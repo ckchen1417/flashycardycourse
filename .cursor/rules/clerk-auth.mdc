@@ -1,0 +1,505 @@
+---
+alwaysApply: true
+---
+
+# Clerk Authentication & Authorization
+
+This project uses **Clerk** for all authentication and authorization. It is **CRITICAL** that users can **ONLY** access their own data and **NEVER** access data belonging to other users.
+
+## Core Security Principle
+
+**EVERY database query that accesses user-specific data MUST include a userId check.**
+
+## Getting the Current User ID
+
+### In Server Components
+
+```typescript
+import { auth } from '@clerk/nextjs/server';
+
+export default async function MyPage() {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    // Handle unauthenticated user (redirect to sign-in)
+    return <div>Please sign in</div>;
+  }
+  
+  // Now use userId in your database queries
+  const userDecks = await db
+    .select()
+    .from(decksTable)
+    .where(eq(decksTable.userId, userId));
+  
+  return <div>{/* Render data */}</div>;
+}
+```
+
+### In Server Actions
+
+```typescript
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
+import { db } from '@/db';
+import { decksTable } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+
+export async function createDeck(name: string) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  const [newDeck] = await db
+    .insert(decksTable)
+    .values({
+      userId, // ALWAYS include the userId
+      name,
+    })
+    .returning();
+  
+  return newDeck;
+}
+```
+
+### In API Routes (Route Handlers)
+
+```typescript
+// app/api/decks/route.ts
+import { auth } from '@clerk/nextjs/server';
+import { db } from '@/db';
+import { decksTable } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  
+  const decks = await db
+    .select()
+    .from(decksTable)
+    .where(eq(decksTable.userId, userId));
+  
+  return NextResponse.json(decks);
+}
+```
+
+## Database Schema: User Ownership
+
+From [src/db/schema.ts](mdc:src/db/schema.ts):
+
+- **decksTable**: Has `userId` field - this is the Clerk user ID
+- **cardsTable**: Belongs to a deck via `deckId` - cards are **indirectly** owned by users through their decks
+
+### Data Access Rules
+
+1. **Decks**: ALWAYS filter by `userId`
+2. **Cards**: ALWAYS verify the card's deck belongs to the current user
+
+## Mandatory Authorization Patterns
+
+### ✅ CREATE Operations - Always Include userId
+
+```typescript
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
+import { db } from '@/db';
+import { decksTable } from '@/db/schema';
+
+export async function createDeck(name: string, description?: string) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // ALWAYS set userId when creating decks
+  const [newDeck] = await db
+    .insert(decksTable)
+    .values({
+      userId, // ✅ REQUIRED
+      name,
+      description,
+    })
+    .returning();
+  
+  return newDeck;
+}
+```
+
+### ✅ READ Operations - Always Filter by userId
+
+```typescript
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
+import { db } from '@/db';
+import { decksTable } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+
+export async function getDeck(deckId: number) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // ✅ ALWAYS filter by userId when reading
+  const [deck] = await db
+    .select()
+    .from(decksTable)
+    .where(
+      and(
+        eq(decksTable.id, deckId),
+        eq(decksTable.userId, userId) // ✅ REQUIRED
+      )
+    )
+    .limit(1);
+  
+  if (!deck) {
+    throw new Error('Deck not found or access denied');
+  }
+  
+  return deck;
+}
+```
+
+### ✅ UPDATE Operations - Verify Ownership First
+
+```typescript
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
+import { db } from '@/db';
+import { decksTable } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
+
+export async function updateDeck(deckId: number, name: string) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // ✅ ALWAYS include userId in WHERE clause
+  const [updatedDeck] = await db
+    .update(decksTable)
+    .set({
+      name,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(decksTable.id, deckId),
+        eq(decksTable.userId, userId) // ✅ REQUIRED - prevents updating other users' decks
+      )
+    )
+    .returning();
+  
+  if (!updatedDeck) {
+    throw new Error('Deck not found or access denied');
+  }
+  
+  return updatedDeck;
+}
+```
+
+### ✅ DELETE Operations - Verify Ownership First
+
+```typescript
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
+import { db } from '@/db';
+import { decksTable } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
+
+export async function deleteDeck(deckId: number) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // ✅ ALWAYS include userId in WHERE clause
+  const result = await db
+    .delete(decksTable)
+    .where(
+      and(
+        eq(decksTable.id, deckId),
+        eq(decksTable.userId, userId) // ✅ REQUIRED - prevents deleting other users' decks
+      )
+    );
+  
+  return result;
+}
+```
+
+### ✅ Cards - Verify Deck Ownership
+
+Cards don't have a direct `userId` field, so you MUST verify the card's deck belongs to the user:
+
+```typescript
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
+import { db } from '@/db';
+import { cardsTable, decksTable } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
+
+export async function getCardsForDeck(deckId: number) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // ✅ First verify the deck belongs to the user
+  const [deck] = await db
+    .select()
+    .from(decksTable)
+    .where(
+      and(
+        eq(decksTable.id, deckId),
+        eq(decksTable.userId, userId)
+      )
+    )
+    .limit(1);
+  
+  if (!deck) {
+    throw new Error('Deck not found or access denied');
+  }
+  
+  // Now safe to get cards
+  const cards = await db
+    .select()
+    .from(cardsTable)
+    .where(eq(cardsTable.deckId, deckId));
+  
+  return cards;
+}
+
+export async function updateCard(cardId: number, front: string, back: string) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // ✅ Verify ownership via JOIN
+  const [updatedCard] = await db
+    .update(cardsTable)
+    .set({
+      front,
+      back,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(cardsTable.id, cardId),
+        // Subquery to verify deck ownership
+        eq(
+          cardsTable.deckId,
+          db
+            .select({ id: decksTable.id })
+            .from(decksTable)
+            .where(
+              and(
+                eq(decksTable.id, cardsTable.deckId),
+                eq(decksTable.userId, userId)
+              )
+            )
+        )
+      )
+    )
+    .returning();
+  
+  if (!updatedCard) {
+    throw new Error('Card not found or access denied');
+  }
+  
+  return updatedCard;
+}
+
+// Alternative approach: Verify deck ownership first
+export async function updateCardSafe(cardId: number, front: string, back: string) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // Get the card with its deck
+  const [card] = await db
+    .select({
+      card: cardsTable,
+      deck: decksTable,
+    })
+    .from(cardsTable)
+    .innerJoin(decksTable, eq(cardsTable.deckId, decksTable.id))
+    .where(eq(cardsTable.id, cardId))
+    .limit(1);
+  
+  if (!card || card.deck.userId !== userId) {
+    throw new Error('Card not found or access denied');
+  }
+  
+  // Now safe to update
+  const [updatedCard] = await db
+    .update(cardsTable)
+    .set({
+      front,
+      back,
+      updatedAt: new Date(),
+    })
+    .where(eq(cardsTable.id, cardId))
+    .returning();
+  
+  return updatedCard;
+}
+```
+
+## Anti-Patterns - NEVER DO THESE
+
+### ❌ Missing userId Check
+
+```typescript
+// ❌ DANGEROUS - No userId check!
+export async function getDeck(deckId: number) {
+  const deck = await db
+    .select()
+    .from(decksTable)
+    .where(eq(decksTable.id, deckId))
+    .limit(1);
+  
+  return deck; // User can access ANY deck!
+}
+```
+
+### ❌ Trusting Client-Provided userId
+
+```typescript
+// ❌ DANGEROUS - Never trust userId from client!
+export async function getDecks(userId: string) { // ❌ userId from parameter
+  const decks = await db
+    .select()
+    .from(decksTable)
+    .where(eq(decksTable.userId, userId)); // ❌ Can be manipulated
+  
+  return decks;
+}
+
+// ✅ CORRECT - Get userId from Clerk
+export async function getDecks() {
+  const { userId } = await auth(); // ✅ From Clerk, not client
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  const decks = await db
+    .select()
+    .from(decksTable)
+    .where(eq(decksTable.userId, userId));
+  
+  return decks;
+}
+```
+
+### ❌ Missing Ownership Verification on Updates/Deletes
+
+```typescript
+// ❌ DANGEROUS - No userId check in WHERE clause
+export async function updateDeck(deckId: number, name: string) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error('Unauthorized');
+  }
+  
+  // ❌ WRONG - Only checking ID, user can update any deck!
+  const [updatedDeck] = await db
+    .update(decksTable)
+    .set({ name })
+    .where(eq(decksTable.id, deckId)) // ❌ Missing userId check
+    .returning();
+  
+  return updatedDeck;
+}
+```
+
+## Middleware Configuration
+
+The [middleware.ts](mdc:src/middleware.ts) file protects routes using Clerk:
+
+```typescript
+import { clerkMiddleware } from "@clerk/nextjs/server";
+
+export default clerkMiddleware();
+
+export const config = {
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
+};
+```
+
+This protects your app, but **YOU STILL MUST** verify ownership in every data access operation.
+
+## Authentication State in Client Components
+
+To access user info in Client Components:
+
+```typescript
+'use client';
+
+import { useUser } from '@clerk/nextjs';
+
+export function UserProfile() {
+  const { user, isLoaded, isSignedIn } = useUser();
+  
+  if (!isLoaded) {
+    return <div>Loading...</div>;
+  }
+  
+  if (!isSignedIn) {
+    return <div>Please sign in</div>;
+  }
+  
+  return <div>Welcome {user.firstName}!</div>;
+}
+```
+
+**IMPORTANT**: Never use `user.id` from client components for data access. Client-side data is not secure. Always fetch data through Server Components or Server Actions that verify authentication server-side.
+
+## Security Checklist
+
+Before deploying or committing code, verify:
+
+- [ ] Every deck query includes `eq(decksTable.userId, userId)`
+- [ ] Every card operation verifies deck ownership
+- [ ] No `userId` is accepted as a parameter from clients
+- [ ] All Server Actions check `await auth()` at the top
+- [ ] All API routes check `await auth()` at the top
+- [ ] UPDATE and DELETE operations include userId in WHERE clause
+- [ ] Error messages don't reveal if a resource exists (use "not found or access denied")
+
+## Summary
+
+**Golden Rules:**
+1. **ALWAYS** call `await auth()` to get the `userId`
+2. **NEVER** trust userId from client-side or function parameters
+3. **ALWAYS** filter by `userId` when accessing decks
+4. **ALWAYS** verify deck ownership when accessing cards
+5. **ALWAYS** include `userId` in WHERE clauses for UPDATE/DELETE operations
+6. Use `and()` to combine conditions: `and(eq(table.id, id), eq(table.userId, userId))`
+
+Following these rules ensures **users can ONLY access their own data** and maintains the security of your application.

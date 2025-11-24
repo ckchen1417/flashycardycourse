@@ -1,0 +1,66 @@
+---
+globs: *.ts,*.tsx
+description: Next.js and TypeScript development best practices
+---
+# Next.js + TypeScript Best Practices
+
+## Component Guidelines
+
+1. **Server Components by Default**: All components in the App Router are Server Components unless marked with `'use client'`
+2. **Client Components**: Add `'use client'` directive at the top when you need:
+   - React hooks (useState, useEffect, etc.)
+   - Event handlers (onClick, onChange, etc.)
+   - Browser APIs
+   - Third-party libraries that use React hooks
+
+3. **Async Server Components**: Server Components can be async for data fetching:
+```typescript
+export default async function Page() {
+  const data = await fetchData();
+  return <div>{data}</div>;
+}
+```
+
+## File Naming Conventions
+
+- Use `kebab-case` for folders and files: `flashcard-list.tsx`
+- Special Next.js files: `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`
+- Components: PascalCase names in kebab-case files: `FlashcardList` in `flashcard-list.tsx`
+
+## TypeScript Best Practices
+
+1. **Type Everything**: Always define proper types/interfaces
+2. **Use Type Imports**: `import type { Type } from 'module'` when only importing types
+3. **Avoid Any**: Never use `any`, use `unknown` if type is truly unknown
+4. **Props Interfaces**: Define props interfaces for all components:
+```typescript
+interface CardProps {
+  title: string;
+  description: string;
+}
+
+export default function Card({ title, description }: CardProps) {
+  return <div>...</div>;
+}
+```
+
+## Import Organization
+
+Order imports as follows:
+1. React/Next.js imports
+2. Third-party libraries
+3. Local components (using @/ alias)
+4. Types
+5. Styles
+
+## Metadata and SEO
+
+Use Next.js metadata API in layouts and pages:
+```typescript
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Page Title",
+  description: "Page description",
+};
+```

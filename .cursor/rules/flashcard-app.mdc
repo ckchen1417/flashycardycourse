@@ -1,0 +1,98 @@
+---
+description: Flashcard application domain logic and feature guidelines
+---
+# Flashcard Application Guidelines
+
+## Application Purpose
+
+This is a flashcard learning application where users can:
+- Create and manage flashcard decks
+- Study flashcards with spaced repetition
+- Track learning progress
+- Organize cards by topics/categories
+
+## Core Data Models
+
+### Flashcard
+```typescript
+interface Flashcard {
+  id: string;
+  front: string; // Question or prompt
+  back: string; // Answer or information
+  deckId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  lastReviewedAt?: Date;
+  nextReviewAt?: Date;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  reviewCount: number;
+}
+```
+
+### Deck
+```typescript
+interface Deck {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  cardCount: number;
+}
+```
+
+## Feature Development Guidelines
+
+### State Management
+- Use React Server Components for data fetching
+- Use Client Components with useState for interactive UI
+- Consider adding a state management library (Zustand, Jotai) for complex state
+
+### Database/Storage
+- Start with localStorage for prototyping
+- Consider upgrading to:
+  - Vercel Postgres
+  - Supabase
+  - PlanetScale
+  - Or any other database solution
+
+### User Experience
+- **Smooth animations**: Use Framer Motion or Tailwind animations
+- **Keyboard shortcuts**: Support arrow keys for navigation
+- **Mobile-first**: Design works on mobile devices
+- **Accessibility**: Follow WCAG guidelines
+
+### Study Features
+- **Spaced Repetition**: Implement algorithm (SM-2 or Leitner system)
+- **Progress Tracking**: Show statistics and learning streaks
+- **Review Sessions**: Timed study sessions with progress indicators
+- **Shuffle Mode**: Randomize card order during study
+
+## Component Organization
+
+Create components in `src/components/`:
+- `flashcard/` - Flashcard display and flip animations
+- `deck/` - Deck management components
+- `study/` - Study session components
+- `ui/` - Reusable UI components (buttons, cards, modals)
+
+## Recommended Libraries
+
+### Already Installed
+- **UI Components**: shadcn/ui (New York style)
+- **Icons**: lucide-react (included with shadcn/ui)
+- **Animations**: tailwindcss-animate (included with shadcn/ui)
+- **Utilities**: clsx, tailwind-merge (for cn() function)
+
+### To Install as Needed
+- **Forms**: react-hook-form + zod for validation (install shadcn/ui form component)
+- **Advanced Animations**: framer-motion (for flashcard flip effects)
+- **Date handling**: date-fns
+- **UUID generation**: crypto.randomUUID() (built-in)
+
+### Recommended shadcn/ui Components
+Install these components for the flashcard app:
+```bash
+npx shadcn@latest add button card dialog input label form toast tabs progress badge
+```

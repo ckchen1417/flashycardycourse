@@ -1,0 +1,153 @@
+---
+globs: *.tsx,*.jsx
+description: shadcn/ui component library usage and guidelines
+---
+# shadcn/ui Component Library Guidelines
+
+## Overview
+
+This project uses **shadcn/ui** (New York style) - a collection of re-usable components built with Radix UI and Tailwind CSS. Components are copied into your project, giving you full control.
+
+## Configuration
+
+- **Config File**: [components.json](mdc:components.json)
+- **Style**: New York (clean, minimal design)
+- **Base Color**: Neutral
+- **CSS Variables**: Enabled for theming
+- **Icon Library**: lucide-react
+
+## Component Installation
+
+Add new components using the CLI:
+```bash
+npx shadcn@latest add button
+npx shadcn@latest add card
+npx shadcn@latest add dialog
+```
+
+Common components for flashcard app:
+- `button` - Interactive buttons
+- `card` - Container component
+- `dialog` - Modal dialogs
+- `input` - Form inputs
+- `label` - Form labels
+- `form` - Form wrapper with validation
+- `toast` - Notifications
+- `tabs` - Tab navigation
+- `progress` - Progress bars
+- `badge` - Status badges
+
+## Component Structure
+
+All shadcn/ui components are installed to:
+- `src/components/ui/` - shadcn/ui components (DO NOT modify structure)
+
+## Using Components
+
+Import from `@/components/ui`:
+```typescript
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+export default function Example() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Title</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Button>Click me</Button>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+## Utility Function: cn()
+
+Use the `cn()` utility from [utils.ts](mdc:src/lib/utils.ts) to merge Tailwind classes:
+```typescript
+import { cn } from "@/lib/utils";
+
+<Button className={cn("bg-primary", isActive && "bg-accent")}>
+  Click me
+</Button>
+```
+
+The `cn()` function combines `clsx` and `tailwind-merge` to handle:
+- Conditional classes
+- Class merging without conflicts
+- Proper Tailwind class precedence
+
+## Theming with CSS Variables
+
+Colors are defined as HSL values in [globals.css](mdc:src/app/globals.css):
+
+**Light Mode**: `:root`
+**Dark Mode**: `.dark`
+
+Available color tokens:
+- `background` / `foreground` - Base colors
+- `card` / `card-foreground` - Card colors
+- `primary` / `primary-foreground` - Primary actions
+- `secondary` / `secondary-foreground` - Secondary actions
+- `muted` / `muted-foreground` - Muted/disabled states
+- `accent` / `accent-foreground` - Accent highlights
+- `destructive` / `destructive-foreground` - Error/delete actions
+- `border` / `input` / `ring` - Border colors
+
+Use in Tailwind: `bg-primary`, `text-muted-foreground`, `border-border`
+
+## Dark Mode
+
+Dark mode is configured with class strategy in [tailwind.config.ts](mdc:tailwind.config.ts).
+
+Toggle dark mode by adding/removing the `dark` class to the `<html>` element:
+```typescript
+'use client';
+
+export function ThemeToggle() {
+  const toggleTheme = () => {
+    document.documentElement.classList.toggle('dark');
+  };
+  
+  return <Button onClick={toggleTheme}>Toggle Theme</Button>;
+}
+```
+
+## Customization
+
+### Modifying Components
+- Components in `src/components/ui/` can be customized
+- Changes persist across your project
+- You have full ownership of the code
+
+### Custom Variants
+Use `cva` (class-variance-authority) for variants:
+```typescript
+import { cva } from "class-variance-authority";
+
+const buttonVariants = cva("base-classes", {
+  variants: {
+    variant: {
+      default: "bg-primary",
+      outline: "border border-input",
+    },
+  },
+});
+```
+
+## Best Practices
+
+1. **Don't reinstall**: Once added, components are yours to modify
+2. **Use cn() utility**: For conditional and merged classes
+3. **Follow design system**: Use design tokens (colors, radius, etc.)
+4. **Compose components**: Build complex UIs from smaller components
+5. **Type safety**: All components have TypeScript types
+6. **Accessibility**: Components are built with Radix UI (ARIA compliant)
+
+## Resources
+
+- [shadcn/ui Documentation](https://ui.shadcn.com)
+- [Browse Components](https://ui.shadcn.com/docs/components)
+- [Radix UI Primitives](https://www.radix-ui.com/primitives)
