@@ -4,6 +4,32 @@ description: shadcn/ui component library usage and guidelines
 ---
 # shadcn/ui Component Library Guidelines
 
+## ⚠️ CRITICAL UI REQUIREMENT - READ THIS FIRST ⚠️
+
+**THIS PROJECT USES ONLY shadcn/ui COMPONENTS FOR ALL UI ELEMENTS.**
+
+### Absolute Rules:
+1. **NEVER create custom UI components** (buttons, inputs, cards, dialogs, etc.)
+2. **ALWAYS use shadcn/ui components** from `@/components/ui/`
+3. **NEVER write custom button elements** - use `<Button>` from shadcn/ui
+4. **NEVER write custom form elements** - use shadcn/ui form components
+5. **NEVER create custom dialogs/modals** - use `<Dialog>` from shadcn/ui
+6. **NEVER use basic HTML elements** for interactive UI (no `<button>`, `<input>`, `<select>` directly)
+
+### If you need a UI element:
+1. First, check if it exists in shadcn/ui: https://ui.shadcn.com/docs/components
+2. If it exists, install it: `npx shadcn@latest add [component-name]`
+3. Use the installed component from `@/components/ui/`
+4. If it doesn't exist in shadcn/ui, compose existing shadcn/ui components together
+5. **NEVER build custom UI from scratch**
+
+### Violations to Watch For:
+❌ `<button className="...">` - Use `<Button>` instead
+❌ `<input type="text" />` - Use `<Input>` instead
+❌ `<div className="modal">` - Use `<Dialog>` instead
+❌ Creating custom card components - Use `<Card>` instead
+❌ Custom dropdown menus - Use `<DropdownMenu>` instead
+
 ## Overview
 
 This project uses **shadcn/ui** (New York style) - a collection of re-usable components built with Radix UI and Tailwind CSS. Components are copied into your project, giving you full control.
@@ -36,6 +62,261 @@ Common components for flashcard app:
 - `tabs` - Tab navigation
 - `progress` - Progress bars
 - `badge` - Status badges
+
+## Clerk Authentication Integration
+
+**CRITICAL: Clerk MUST be integrated with shadcn/ui components ONLY.**
+
+### Clerk + shadcn/ui Requirements:
+
+1. **NEVER use Clerk's pre-built UI components** (no `<SignInButton>`, `<SignUpButton>`, `<UserButton>`)
+2. **ALWAYS use shadcn/ui Button** for triggering sign-in/sign-up
+3. **ALWAYS use shadcn/ui Dialog** for sign-in/sign-up modals
+4. **Use Clerk's redirect methods** within shadcn/ui modals
+
+### Required Components for Clerk Integration:
+
+Install these shadcn/ui components:
+```bash
+npx shadcn@latest add button
+npx shadcn@latest add dialog
+npx shadcn@latest add avatar
+npx shadcn@latest add dropdown-menu
+```
+
+### ✅ CORRECT: Clerk Sign-In with shadcn/ui Dialog
+
+```typescript
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { SignIn } from '@clerk/nextjs';
+
+export function SignInButton() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="default">Sign In</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Sign In to Your Account</DialogTitle>
+          <DialogDescription>
+            Enter your credentials to access your flashcards
+          </DialogDescription>
+        </DialogHeader>
+        <SignIn
+          appearance={{
+            elements: {
+              rootBox: 'mx-auto',
+              card: 'shadow-none',
+            },
+          }}
+          routing="hash"
+          signUpUrl="#"
+          afterSignInUrl="/dashboard"
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### ✅ CORRECT: Clerk Sign-Up with shadcn/ui Dialog
+
+```typescript
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { SignUp } from '@clerk/nextjs';
+
+export function SignUpButton() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">Sign Up</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Create Your Account</DialogTitle>
+          <DialogDescription>
+            Sign up to start creating and studying flashcards
+          </DialogDescription>
+        </DialogHeader>
+        <SignUp
+          appearance={{
+            elements: {
+              rootBox: 'mx-auto',
+              card: 'shadow-none',
+            },
+          }}
+          routing="hash"
+          signInUrl="#"
+          afterSignUpUrl="/dashboard"
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### ✅ CORRECT: User Profile Menu with shadcn/ui
+
+```typescript
+'use client';
+
+import { useUser, useClerk } from '@clerk/nextjs';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { User, LogOut, Settings } from 'lucide-react';
+
+export function UserMenu() {
+  const { user } = useUser();
+  const { signOut } = useClerk();
+
+  if (!user) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+          <Avatar>
+            <AvatarImage src={user.imageUrl} alt={user.fullName || 'User'} />
+            <AvatarFallback>
+              {user.firstName?.[0]}{user.lastName?.[0]}
+            </AvatarFallback>
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium">{user.fullName}</p>
+            <p className="text-xs text-muted-foreground">
+              {user.primaryEmailAddress?.emailAddress}
+            </p>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem>
+          <User className="mr-2 h-4 w-4" />
+          Profile
+        </DropdownMenuItem>
+        <DropdownMenuItem>
+          <Settings className="mr-2 h-4 w-4" />
+          Settings
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => signOut()}>
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign Out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+```
+
+### ❌ WRONG: Using Clerk's Built-in Components
+
+```typescript
+// ❌ DON'T DO THIS
+import { SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
+
+export function Header() {
+  return (
+    <header>
+      <SignInButton /> {/* ❌ WRONG - Use shadcn/ui Button + Dialog */}
+      <SignUpButton /> {/* ❌ WRONG - Use shadcn/ui Button + Dialog */}
+      <UserButton /> {/* ❌ WRONG - Use shadcn/ui Avatar + DropdownMenu */}
+    </header>
+  );
+}
+```
+
+### ❌ WRONG: Custom Button Elements
+
+```typescript
+// ❌ DON'T DO THIS
+export function SignInButton() {
+  return (
+    <button onClick={handleSignIn}> {/* ❌ WRONG - Use shadcn/ui Button */}
+      Sign In
+    </button>
+  );
+}
+```
+
+### Clerk Configuration for Modal Usage
+
+In your Clerk components, use these settings:
+- `routing="hash"` - Enables hash-based routing for modals
+- `appearance` - Customize to match shadcn/ui styling
+- `afterSignInUrl` / `afterSignUpUrl` - Set redirect URLs
+
+### Complete Authentication Header Example
+
+```typescript
+'use client';
+
+import { useUser } from '@clerk/nextjs';
+import { SignInButton } from '@/components/sign-in-button';
+import { SignUpButton } from '@/components/sign-up-button';
+import { UserMenu } from '@/components/user-menu';
+
+export function AuthHeader() {
+  const { isSignedIn } = useUser();
+
+  return (
+    <header className="border-b">
+      <div className="container flex h-16 items-center justify-between">
+        <div className="text-xl font-bold">Flashy Cardy</div>
+        
+        <div className="flex items-center gap-4">
+          {isSignedIn ? (
+            <UserMenu />
+          ) : (
+            <>
+              <SignInButton />
+              <SignUpButton />
+            </>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+```
 
 ## Component Structure
 
@@ -139,15 +420,164 @@ const buttonVariants = cva("base-classes", {
 
 ## Best Practices
 
-1. **Don't reinstall**: Once added, components are yours to modify
-2. **Use cn() utility**: For conditional and merged classes
-3. **Follow design system**: Use design tokens (colors, radius, etc.)
-4. **Compose components**: Build complex UIs from smaller components
-5. **Type safety**: All components have TypeScript types
-6. **Accessibility**: Components are built with Radix UI (ARIA compliant)
+1. **ONLY shadcn/ui components**: Never create custom UI components
+2. **Don't reinstall**: Once added, components are yours to modify
+3. **Use cn() utility**: For conditional and merged classes
+4. **Follow design system**: Use design tokens (colors, radius, etc.)
+5. **Compose components**: Build complex UIs from smaller components
+6. **Type safety**: All components have TypeScript types
+7. **Accessibility**: Components are built with Radix UI (ARIA compliant)
+8. **Clerk integration**: Always use shadcn/ui Dialog for authentication modals
+
+## Anti-Patterns (NEVER DO THESE)
+
+### ❌ Creating Custom UI Components
+
+```typescript
+// ❌ WRONG - Custom button
+export function MyButton({ children }: { children: React.ReactNode }) {
+  return <button className="px-4 py-2 bg-blue-500">{children}</button>;
+}
+
+// ✅ CORRECT - Use shadcn/ui Button
+import { Button } from '@/components/ui/button';
+export function MyComponent() {
+  return <Button>Click me</Button>;
+}
+```
+
+### ❌ Using HTML Elements Directly
+
+```typescript
+// ❌ WRONG
+<button>Click me</button>
+<input type="text" />
+<select><option>Choose</option></select>
+
+// ✅ CORRECT
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select';
+
+<Button>Click me</Button>
+<Input type="text" />
+<Select>
+  <SelectTrigger>Choose</SelectTrigger>
+  <SelectContent>
+    <SelectItem value="1">Option 1</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+### ❌ Custom Modal/Dialog Implementation
+
+```typescript
+// ❌ WRONG - Custom modal
+export function CustomModal({ open, onClose, children }) {
+  return (
+    <div className={open ? 'fixed inset-0 z-50' : 'hidden'}>
+      <div className="bg-black/50" onClick={onClose} />
+      <div className="bg-white rounded-lg p-6">{children}</div>
+    </div>
+  );
+}
+
+// ✅ CORRECT - Use shadcn/ui Dialog
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+
+export function MyDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>Open</Button>
+      </DialogTrigger>
+      <DialogContent>
+        {/* Content here */}
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### ❌ Using Clerk's Built-in UI Components
+
+```typescript
+// ❌ WRONG
+import { SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
+
+<SignInButton />
+<SignUpButton />
+<UserButton />
+
+// ✅ CORRECT - Use shadcn/ui with Clerk
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { SignIn } from '@clerk/nextjs';
+
+<Dialog>
+  <DialogTrigger asChild>
+    <Button>Sign In</Button>
+  </DialogTrigger>
+  <DialogContent>
+    <SignIn routing="hash" />
+  </DialogContent>
+</Dialog>
+```
+
+### ❌ Custom Card/Container Components
+
+```typescript
+// ❌ WRONG
+export function MyCard({ title, content }) {
+  return (
+    <div className="border rounded-lg p-6 shadow-md">
+      <h3 className="text-xl font-bold">{title}</h3>
+      <p>{content}</p>
+    </div>
+  );
+}
+
+// ✅ CORRECT - Use shadcn/ui Card
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+
+export function MyCard({ title, content }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p>{content}</p>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+## Quick Reference: Common UI Needs
+
+| Need | shadcn/ui Component | Install Command |
+|------|---------------------|-----------------|
+| Button | `Button` | `npx shadcn@latest add button` |
+| Form Input | `Input` | `npx shadcn@latest add input` |
+| Dropdown | `Select` or `DropdownMenu` | `npx shadcn@latest add select` |
+| Modal/Dialog | `Dialog` | `npx shadcn@latest add dialog` |
+| Card | `Card` | `npx shadcn@latest add card` |
+| User Avatar | `Avatar` | `npx shadcn@latest add avatar` |
+| Tabs | `Tabs` | `npx shadcn@latest add tabs` |
+| Form | `Form` (with react-hook-form) | `npx shadcn@latest add form` |
+| Toast/Notification | `Toast` | `npx shadcn@latest add toast` |
+| Badge | `Badge` | `npx shadcn@latest add badge` |
+| Progress Bar | `Progress` | `npx shadcn@latest add progress` |
+| Loading Spinner | `Skeleton` or custom with lucide-react icons | `npx shadcn@latest add skeleton` |
+
+## Summary: The Golden Rule
+
+**If you need UI, check shadcn/ui first. If it exists there, use it. If it doesn't exist, compose multiple shadcn/ui components. NEVER create custom UI from scratch.**
 
 ## Resources
 
 - [shadcn/ui Documentation](https://ui.shadcn.com)
 - [Browse Components](https://ui.shadcn.com/docs/components)
 - [Radix UI Primitives](https://www.radix-ui.com/primitives)
+- [Clerk + Next.js Documentation](https://clerk.com/docs/quickstarts/nextjs)
